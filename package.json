@@ -1,8 +1,8 @@
 {
-  "name": "@renz/baileys",
+  "name": "@rennzsync/baileys",
   "type": "module",
   "version": "10.2.0",
-  "description": "renz/baileys \u2014 WhatsApp Multi-Device library rebased @whiskeysockets/baileys 7.0.0-rc14, using the original libsignal (GPL-3.0) Signal Protocol engine. Maintained by RennZz-Dev. Focus: multimedia WhatsApp bots, low RAM footprint.",
+  "description": "renz/baileys — WhatsApp Multi-Device library rebased @whiskeysockets/baileys 7.0.0-rc14, using the original libsignal (GPL-3.0) Signal Protocol engine. Maintained by RennZz-Dev. Focus: multimedia WhatsApp bots, low RAM footprint.",
   "license": "MIT",
   "author": "RennZz-Dev (https://github.com/renzxhub)",
   "repository": {
@@ -16,8 +16,11 @@
     "WAProto/**/*"
   ],
   "scripts": {
+    "build:proto": "pbjs -t static-module -w es6 -o WAProto/index.js WAProto/WAProto.proto && pbts -o WAProto/index.d.ts WAProto/index.js && node WAProto/fix-imports.js",
+    "build": "npm run build:proto",
     "test": "node --test tests/**/*.test.mjs"
   },
+
   "keywords": [
     "renz",
     "baileys",
