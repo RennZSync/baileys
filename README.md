@@ -1,6 +1,6 @@
 <div align="center">
 
-# renz/baileys
+# renzsync/baileys
 
 **Lightweight WhatsApp Bot library — fully rebased onto `@whiskeysockets/baileys` 7.0.0-rc14**
 
@@ -15,7 +15,7 @@
 
 A WhatsApp Multi-Device library rebased onto Baileys v7 rc14, using the original Signal Protocol engine (`libsignal`, GPL-3.0) — the same one stock `@whiskeysockets/baileys` rc14 ships with.
 
-> **License note:** `renz/baileys`'s own code is MIT, but it depends on `libsignal` (GPL-3.0) at runtime for the Signal Protocol crypto. If you're publishing or redistributing this package, check what GPL-3.0 compliance means for your use case — this isn't legal advice.
+> **License note:** `renzsync/baileys`'s own code is MIT, but it depends on `libsignal` (GPL-3.0) at runtime for the Signal Protocol crypto. If you're publishing or redistributing this package, check what GPL-3.0 compliance means for your use case — this isn't legal advice.
 
 Project focus: **multimedia WhatsApp bots** — audio, video, image and sticker pipelines, plus **Rich WebUI** (inline HTML interfaces rendered inside chat bubbles), with RAM-friendly defaults.
 
@@ -44,7 +44,7 @@ Platform support follows whatever `libsignal` (^6.0.0) supports on your system �
 ## Installation
 
 ```bash
-npm install @renz/baileys
+npm install @renzsync/baileys
 ```
 
 ### Optional dependencies (install per feature)
@@ -62,7 +62,7 @@ npm install @renz/baileys
 ## Quick Start
 
 ```js
-import makeWASocket, { useMultiFileAuthState } from '@renz/baileys';
+import makeWASocket, { useMultiFileAuthState } from '@renzsync/baileys';
 
 const { state, saveCreds } = await useMultiFileAuthState('auth_info');
 
@@ -113,7 +113,7 @@ await sock.sendMessage(jid, {
 ### Convert video/audio before sending (media-processor)
 
 ```js
-import { convertToWhatsAppVideo, convertToOpusAudio, getVideoThumbnail, resizeImage } from '@renz/baileys';
+import { convertToWhatsAppVideo, convertToOpusAudio, getVideoThumbnail, resizeImage } from '@renzsync/baileys';
 
 // Any video -> WhatsApp-compatible MP4/H.264 (requires fluent-ffmpeg)
 const mp4 = await convertToWhatsAppVideo(rawBuffer);
@@ -130,7 +130,7 @@ const small = await resizeImage(imageBuffer, { width: 300, height: 300 });
 ### Probe media metadata
 
 ```js
-import { probeMedia, getMp4Duration } from '@renz/baileys';
+import { probeMedia, getMp4Duration } from '@renzsync/baileys';
 
 const meta = await probeMedia(buffer, 'audio/mpeg'); // { duration, bitrate, container, codec }
 const dur = getMp4Duration(mp4Buffer); // no ffmpeg needed — parses atoms directly
@@ -143,7 +143,7 @@ const dur = getMp4Duration(mp4Buffer); // no ffmpeg needed — parses atoms dire
 Send an HTML/CSS/JS interface that **renders directly inside the message bubble** — great for interactive menus, mini-apps and dashboards:
 
 ```js
-import { sendInlineWebUI } from '@renz/baileys';
+import { sendInlineWebUI } from '@renzsync/baileys';
 
 const html = `<!DOCTYPE html>
 <html><head><style>body{background:#111b21;color:#fff;font-family:sans-serif;padding:16px}</style></head>
@@ -166,32 +166,32 @@ await sendInlineWebUI(sock, jid, html, 'Bot Menu', {
 
 `interactiveMessage` + `nativeFlowMessage` cards are **no longer rendered** on many WhatsApp clients — `relayMessage` succeeds without error but the message silently doesn't appear. The classic `buttonsMessage` and `listMessage` templates render reliably on **every** client (Android/iOS/Web/Desktop).
 
-`@renz/baileys@10.0.2` ships ready-made builders in `lib/Utils/rich-classic.js`:
+`@renzsync/baileys@10.0.2` ships ready-made builders in `lib/Utils/rich-classic.js`:
 
 ```js
-import { buildButtonsMessage, buildListMessage, sendClassicMessage } from '@renz/baileys';
+import { buildButtonsMessage, buildListMessage, sendClassicMessage } from '@renzsync/baileys';
 
 // 1-3 quick-reply buttons (optionally with a location+thumbnail header)
 const buttons = buildButtonsMessage({
   text: 'Hello Brother — pick an option',
   footer: '© My Bot',
   buttons: [
-    { buttonId: '.owner', buttonText: '🧀 Owner' },
-    { buttonId: '.allmenu', buttonText: '💐 Allmenu' },
+    { buttonId: '.owner', buttonText: 'Owner' },
+    { buttonId: '.allmenu', buttonText: 'Allmenu' },
   ],
   locationMessage: { jpegThumbnail, name: 'My Bot', address: 'v10.0.1' },
 });
 
 // Scrollable list with sections and rows
 const list = buildListMessage({
-  title: '🍃 Menu — 1271 commands',
+  title: 'Menu — 1271 commands',
   description: 'Pick a category',
-  buttonText: '🍃 Pilih Kategori',
+  buttonText: 'Pilih Kategori',
   sections: [{
     title: 'Categories',
     rows: [
-      { title: '🏠 main', description: '19 commands', rowId: '.menucat main' },
-      { title: '🎨 sticker', description: '42 commands', rowId: '.menucat sticker' },
+      { title: 'main', description: '19 commands', rowId: '.menucat main' },
+      { title: 'sticker', description: '42 commands', rowId: '.menucat sticker' },
     ],
   }],
 });
@@ -211,15 +211,15 @@ Also exports `normalizeUserJid(sockOrUserOrJid)` — `sock.user.jid` never exist
 `lib/Utils/rich-carousel.js` adds `interactiveMessage`/`carouselMessage` builders (the horizontal-scroll card format), for cases where you specifically need carousel or richer CTA button types (`cta_url`, `cta_call`, `cta_copy`, `cta_reminder`, `single_select`) that the classic templates above don't cover. Same rendering caveat as always: prefer `rich-classic.js` unless you specifically need these.
 
 ```js
-import { buildCarouselMessage, sendCarouselMessage, sendInteractiveMessage } from '@renz/baileys';
+import { buildCarouselMessage, sendCarouselMessage, sendInteractiveMessage } from '@renzsync/baileys';
 
 // single native-flow bubble (no carousel)
 await sendInteractiveMessage(sock, jid, {
   text: 'Choose an action:',
   footer: '© My Bot',
   buttons: [
-    { type: 'quick_reply', displayText: '🧀 Owner', id: '.owner' },
-    { type: 'cta_url', displayText: '📖 Docs', url: 'https://github.com/RennZSync/baileys' },
+    { type: 'quick_reply', displayText: 'Owner', id: '.owner' },
+    { type: 'cta_url', displayText: 'Docs', url: 'https://github.com/RennZSync/baileys' },
   ],
 });
 
@@ -262,7 +262,7 @@ await sock.updateProfilePicture(sock.user.id, imageBuffer); // unchanged default
 `lib/Store/*` ships a chat/contact/message store you can wire into `sock.ev`, plus two auth-state backends:
 
 ```js
-import makeWASocket, { makeInMemoryStore, useSqliteAuthState, useMultiFileAuthState } from '@renz/baileys';
+import makeWASocket, { makeInMemoryStore, useSqliteAuthState, useMultiFileAuthState } from '@renzsync/baileys';
 
 const store = makeInMemoryStore({});
 store.readFromFile('./store.json');
@@ -289,7 +289,7 @@ sock.ev.on('creds.update', saveCreds);
 Send a poll where each option is an image instead of plain text (`pollCreationMessageV3` with `pollContentType: IMAGE`, one `pollCreationOptionImageMessage` per option, associated back to the parent poll via `MEDIA_POLL`):
 
 ```js
-import { generateWAMessageFromImagePoll } from '@renz/baileys';
+import { generateWAMessageFromImagePoll } from '@renzsync/baileys';
 
 await generateWAMessageFromImagePoll(jid, {
   name: 'Pilih gambar favorit',
@@ -318,9 +318,9 @@ const sock = makeWASocket({
 
 ---
 
-## Breaking Changes from 9.x (legacy oktz-baileys)
+## Breaking Changes from 9.x (legacy renzsync-baileys)
 
-- Base rebased to Baileys **7.0.0-rc14** (no longer ourin-baileys 9.0.21).
+- Base rebased to Baileys **7.0.0-rc14** 
 - Removed modules: `lib/VoIP/*` (WebRTC call client), `Modded/message_builder.js`, `Utils/rich-messages.js`, `Socket/dugong.js`, `Utils/sticker-pack.js`.
   - `rejectCall` remains available (core `messages-recv`).
   - Replacement for the old rich messages: `rich-webui.js` (`sendInlineWebUI`, `buildWebuiMessage`).
@@ -339,7 +339,7 @@ const sock = makeWASocket({
 ## Testing
 
 ```bash
-npm test
+npm test 
 ```
 
 Includes unit tests for: JID utils (PN/LID/hosted), Rich WebUI (build + proto encode/decode roundtrip).
@@ -348,12 +348,11 @@ Includes unit tests for: JID utils (PN/LID/hosted), Rich WebUI (build + proto en
 
 ## Credits
 
-- **[RennZz-Dev](https://github.com/RennZSync)** — `renz/baileys` maintainer: rebrand, ongoing upkeep & bot-focused tweaks
-- **[KzorArsuy](https://github.com/rozzak2009)** — audit, rc14 rebase, optimization, multimedia & WebUI
+- **[RennZz-Dev](https://github.com/RennZSync)** — `renzsync/baileys` maintainer: rebrand, ongoing upkeep & bot-focused tweaks
 - **[WhiskeySockets/Baileys](https://github.com/WhiskeySockets/Baileys)** — upstream library & original Signal Protocol wrapper (`libsignal`-based)
 
 ---
 
 ## License
 
-**MIT** for `renz/baileys`'s own code — but it depends on `libsignal` (GPL-3.0) at runtime for Signal Protocol crypto. Check what that means for your use case before redistributing.
+**MIT** for `renzsync/baileys`'s own code — but it depends on `libsignal` (GPL-3.0) at runtime for Signal Protocol crypto. Check what that means for your use case before redistributing.
