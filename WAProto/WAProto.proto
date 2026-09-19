@@ -2676,6 +2676,7 @@ message Message {
         optional Header header = 1;
         optional Body body = 2;
         optional Footer footer = 3;
+        optional BloksWidget bloksWidget = 8;
         optional ContextInfo contextInfo = 15;
         optional UrlTrackingMap urlTrackingMap = 16;
         oneof interactiveMessage {
@@ -2684,6 +2685,13 @@ message Message {
             Message.InteractiveMessage.NativeFlowMessage nativeFlowMessage = 6;
             Message.InteractiveMessage.CarouselMessage carouselMessage = 7;
         }
+        message BloksWidget {
+            optional string uuid = 1;
+            optional string data = 2;
+            optional string type = 3;
+            optional string fallback = 4;
+        }
+
         message Body {
             optional string text = 1;
         }

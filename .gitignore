@@ -1,0 +1,6 @@
+node_modules/
+*.tgz
+.env
+auth/
+session/
+*.log

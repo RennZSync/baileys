@@ -4,7 +4,7 @@
 
 **Library WhatsApp Bot ringan — full rebase dari `@whiskeysockets/baileys` 7.0.0-rc14**
 
-[![Version](https://img.shields.io/badge/npm-10.4.0-25D366?style=for-the-badge&logo=whatsapp&logoColor=white)](https://www.npmjs.com/package/@rennzsync/baileys)
+[![Version](https://img.shields.io/badge/npm-10.5.0-25D366?style=for-the-badge&logo=whatsapp&logoColor=white)](https://www.npmjs.com/package/@rennzsync/baileys)
 [![Node](https://img.shields.io/badge/Node.js-%3E%3D20.0.0-339933?style=for-the-badge&logo=node.js&logoColor=white)](https://nodejs.org)
 [![Baileys](https://img.shields.io/badge/Base-Baileys%207.0.0--rc14-blue?style=for-the-badge)](https://github.com/WhiskeySockets/Baileys)
 [![License](https://img.shields.io/badge/License-MIT%20%2B%20GPL--3.0%20dep-blue?style=for-the-badge)](LICENSE)
@@ -27,6 +27,7 @@ Fokus proyek: **bot WhatsApp multimedia** — pipeline audio, video, gambar, dan
 - **Engine Signal Protocol standar** — pakai `libsignal` langsung, sama seperti stock Baileys rc14; nggak ada kripto native custom yang perlu di-maintain.
 - **Pipeline multimedia terpusat** — utility `media-processor` (ffmpeg/sharp/audio-decode, lazy-loaded).
 - **Rich WebUI** — render interface HTML/CSS/JS langsung di dalam bubble chat lewat `sendInlineWebUI`.
+- **Widget & rich menu (10.5.0)** — `sock.sendA2UI` (widget A2UI), `sock.richMenu`, dan opsi kirim `viewOnceV2` / `viewOnceV2Extension`.
 - **Hemat RAM secara default** — `syncFullHistory: false`, `enableRecentMessageCache: false`, TTL cache moderat.
 
 ---
@@ -166,7 +167,7 @@ await sendInlineWebUI(sock, jid, html, 'Menu Bot', {
 
 Card `interactiveMessage` + `nativeFlowMessage` **udah nggak dirender** di banyak client WhatsApp — `relayMessage` sukses tanpa error tapi pesannya diam-diam nggak muncul. Template klasik `buttonsMessage` dan `listMessage` render dengan reliable di **semua** client (Android/iOS/Web/Desktop).
 
-`@rennzsync/baileys@10.4.0` menyediakan builder siap pakai di `lib/Utils/rich-classic.js`:
+`@rennzsync/baileys@10.5.0` menyediakan builder siap pakai di `lib/Utils/rich-classic.js`:
 
 ```js
 import { buildButtonsMessage, buildListMessage, sendClassicMessage } from '@rennzsync/baileys';
@@ -305,6 +306,72 @@ await generateWAMessageFromImagePoll(jid, {
 
 ---
 
+## View Once V2 / V2 Extension (baru di 10.5.0)
+
+```js
+await sock.sendMessage(jid, { text: 'Pesan Rahasia', viewOnceV2Extension: true }) // viewOnceMessageV2Extension
+await sock.sendMessage(jid, { text: 'Pesan Rahasia', viewOnceV2: true })          // viewOnceMessageV2
+```
+
+Pesan dibungkus ke `viewOnceMessageV2Extension` / `viewOnceMessageV2`; untuk teks, `viewOnce: true` di-set di dalam `extendedTextMessage`.
+
+---
+
+## Rich Menu (baru di 10.5.0, perlu hati-hati)
+
+Port `richMenu` dari `@vansnowi/baileys` (juga diekspor sebagai `buildRichMenuMessage` / `sendRichMenu` dari `lib/Utils/rich-menu.js`). Tombolnya adalah CTA widget dengan toast, bukan quick-reply yang mengirim pesan balik. Pakai format GenAI `unifiedResponse` internal, jadi bisa saja tidak dirender di semua client WhatsApp.
+
+```js
+// tombol
+await sock.richMenu(jid, {
+  header: { title: 'Main Menu', image: { url: 'https://example.com/banner.png' } },
+  body: { title: 'Pick one', buttons: ['Profile', 'Settings', 'Help'], toast: 'opening...' },
+  footer: { text: 'Join us', url: 't.me/example' }
+})
+
+// kartu geser (carousel: true) / baris (row: true)
+await sock.richMenu(jid, {
+  body: {
+    carousel: true,
+    cards: [
+      { title: 'Card 1', buttons: ['A', 'B'], toast: '...' },
+      { title: 'Card 2', buttons: ['C', 'D'], toast: '...' }
+    ]
+  }
+})
+```
+
+`footer.url` wajib diisi untuk tombol open-URL (tidak ada link default).
+
+---
+
+## Widget A2UI (baru di 10.5.0, perlu hati-hati)
+
+Widget deklaratif (`Text`, `Image`, `Video`, `Button`, `Card`, `Column`, `Row`, `Divider`, `CheckBox`, `TextField`, `ChoicePicker`, plus `listCard`) yang dikirim sebagai `interactiveMessage.bloksWidget`. Diekspor juga sebagai `A2UI` / `sendA2UIWidget` dari `lib/Utils/a2ui.js`. Proto sekarang punya `InteractiveMessage.BloksWidget` (field 8). Format internal WhatsApp, jadi bisa tidak dirender di semua client.
+
+```js
+import { A2UI } from '@rennzsync/baileys'
+
+const ui = new A2UI()
+const title = ui.text('Halo!', { variant: 'h1' })
+const label = ui.text('Klik saya')
+const btn = ui.button(label, { action: { name: 'noop' } })
+ui.root([ui.card(ui.column([title, btn]))])
+
+await sock.sendA2UI(jid, { a2ui: ui, bodyText: 'Widget', footer: 'A2UI' })
+
+// list card
+const list = new A2UI().listCard({
+  title: 'Menu',
+  items: [{ title: 'Nasi Goreng', price: 'Rp15.000' }, { title: 'Es Teh', price: 'Rp5.000' }]
+})
+await sock.sendA2UI(jid, { a2ui: list, bodyText: 'Pesan menu' })
+```
+
+Opsi: `singleScreen`, `buttons` (native flow `{ name, params }`), `expiration`, `contextInfo`, `quoted`, `wrapped`, `type`.
+
+---
+
 ## Konfigurasi Default (hemat RAM)
 
 ```js
@@ -329,10 +396,11 @@ const sock = makeWASocket({
 - **10.0.3:** menambahkan `rich-carousel.js` (`buildCarouselMessage`, `buildInteractiveMessage`, `buildInteractiveCard`, `buildNativeFlowButton`, `sendCarouselMessage`, `sendInteractiveMessage`) buat carousel card dan tombol CTA native-flow yang lebih kaya (`cta_url`/`cta_call`/`cta_copy`/`cta_reminder`/`single_select`). Juga memperluas `generateProfilePicture` (dan `updateProfilePicture` / `newsletterUpdatePicture`) dengan opsi `{ full: true }` buat upload foto profil di resolusi/kualitas asli, bukan downscale paksa 640×640 quality-50.
 - **10.1.0:** menggabungkan `lib/Store/*` (in-memory store, cache-manager store, keyed-db/ordered-dictionary/object-repository) dari `@vansnowi/baileys`, plus `useSqliteAuthState` (node:sqlite bawaan Node 22.5+, dengan fallback error yang jelas di Node lama) dan filter kirim `isSecret`/`protected`/`me`-only yang dipasang ke `sock.sendMessage`.
 - **10.2.0:** menambahkan `generateWAMessageFromImagePoll` / `hashImagePollOption` — builder sisi klien buat tipe pesan image-poll WhatsApp (`pollCreationMessageV3` + `pollCreationOptionImageMessage`, asosiasi `MEDIA_POLL`). Eksperimental — nggak ada fork Baileys upstream yang menyediakan ini.
+- **10.5.0:** menambahkan opsi kirim `viewOnceV2` / `viewOnceV2Extension` (pesan dibungkus `viewOnceMessageV2` / `viewOnceMessageV2Extension`; untuk teks, `viewOnce: true` di-set di dalam `extendedTextMessage`); `sock.richMenu` (`rich-menu.js`: `buildRichMenuMessage`, `sendRichMenu` — tombol, kartu carousel/row, header gambar, footer open-URL) di-port dari `@vansnowi/baileys` tanpa link footer default bawaannya; widget A2UI (`a2ui.js`: `A2UI`, `sendA2UIWidget`, `sock.sendA2UI`) dikirim lewat `interactiveMessage.bloksWidget`, dengan `InteractiveMessage.BloksWidget` (field 8) ditambahkan ke WAProto (`WAProto.proto`, `index.js`, `index.d.ts`). `richMenu` dan A2UI memakai format internal WhatsApp, jadi bisa tidak dirender di semua client.
 - Konfigurasi default berubah: `syncFullHistory` dan `enableRecentMessageCache` sekarang `false`.
 - `protobufjs-cli` di-pin ke `^1.1.3` (fix konflik peer dependency); `link-preview-js` ke `^5.0.0` (fix advisory SSRF).
-- **Rebrand:** package diganti nama jadi `@renz/baileys`, sekarang dirawat oleh [RennZz-Dev](https://github.com/RennZSync). Nggak ada perubahan API — update import kamu dari `onigis` ke `@renz/baileys`.
-- **Engine Signal dikembalikan ke stock:** menghapus engine custom `@renz/signal`/`@renz/curve25519` (MIT, native Rust) dan kembali ke `libsignal` asli (GPL-3.0) yang dipakai stock Baileys rc14 — implementasi Signal Protocol yang sama, nggak ada lagi binary native custom yang perlu di-build/dikirim. Lihat catatan lisensi di bagian atas file ini.
+- **Rebrand:** package diganti nama jadi `@rennzsync/baileys`, sekarang dirawat oleh [RennZz-Dev](https://github.com/RennZSync). Nggak ada perubahan API — update import kamu dari `onigis` ke `@rennzsync/baileys`.
+- **Engine Signal dikembalikan ke stock:** menghapus engine custom `@rennzsync/signal`/`@rennzsync/curve25519` (MIT, native Rust) dan kembali ke `libsignal` asli (GPL-3.0) yang dipakai stock Baileys rc14 — implementasi Signal Protocol yang sama, nggak ada lagi binary native custom yang perlu di-build/dikirim. Lihat catatan lisensi di bagian atas file ini.
 
 ---
 

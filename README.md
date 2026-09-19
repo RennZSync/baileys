@@ -4,7 +4,7 @@
 
 **Lightweight WhatsApp Bot library — fully rebased onto `@whiskeysockets/baileys` 7.0.0-rc14**
 
-[![Version](https://img.shields.io/badge/npm-10.4.0-25D366?style=for-the-badge&logo=whatsapp&logoColor=white)](https://www.npmjs.com/package/@renz/baileys)
+[![Version](https://img.shields.io/badge/npm-10.5.0-25D366?style=for-the-badge&logo=whatsapp&logoColor=white)](https://www.npmjs.com/package/@rennzsync/baileys)
 [![Node](https://img.shields.io/badge/Node.js-%3E%3D20.0.0-339933?style=for-the-badge&logo=node.js&logoColor=white)](https://nodejs.org)
 [![Baileys](https://img.shields.io/badge/Base-Baileys%207.0.0--rc14-blue?style=for-the-badge)](https://github.com/WhiskeySockets/Baileys)
 [![License](https://img.shields.io/badge/License-MIT%20%2B%20GPL--3.0%20dep-blue?style=for-the-badge)](LICENSE)
@@ -27,6 +27,7 @@ Project focus: **multimedia WhatsApp bots** — audio, video, image and sticker 
 - **Standard Signal Protocol engine** — uses `libsignal` directly, same as stock Baileys rc14; no custom native crypto to maintain.
 - **Centralized multimedia pipeline** — `media-processor` utilities (ffmpeg/sharp/audio-decode, lazy-loaded).
 - **Rich WebUI** — render HTML/CSS/JS interfaces directly inside chat bubbles via `sendInlineWebUI`.
+- **Widgets & rich menus (10.5.0)** — `sock.sendA2UI` (A2UI widgets), `sock.richMenu`, and `viewOnceV2` / `viewOnceV2Extension` send options.
 - **RAM-friendly by default** — `syncFullHistory: false`, `enableRecentMessageCache: false`, moderate cache TTLs.
 
 ---
@@ -166,7 +167,7 @@ await sendInlineWebUI(sock, jid, html, 'Bot Menu', {
 
 `interactiveMessage` + `nativeFlowMessage` cards are **no longer rendered** on many WhatsApp clients — `relayMessage` succeeds without error but the message silently doesn't appear. The classic `buttonsMessage` and `listMessage` templates render reliably on **every** client (Android/iOS/Web/Desktop).
 
-`@rennzsync/baileys@10.4.0` ships ready-made builders in `lib/Utils/rich-classic.js`:
+`@rennzsync/baileys@10.5.0` ships ready-made builders in `lib/Utils/rich-classic.js`:
 
 ```js
 import { buildButtonsMessage, buildListMessage, sendClassicMessage } from '@rennzsync/baileys';
@@ -305,6 +306,72 @@ await generateWAMessageFromImagePoll(jid, {
 
 ---
 
+## View Once V2 / V2 Extension (new in 10.5.0)
+
+```js
+await sock.sendMessage(jid, { text: 'Secret message', viewOnceV2Extension: true }) // viewOnceMessageV2Extension
+await sock.sendMessage(jid, { text: 'Secret message', viewOnceV2: true })          // viewOnceMessageV2
+```
+
+Wraps the message in `viewOnceMessageV2Extension` / `viewOnceMessageV2`; for text, `viewOnce: true` is set on the inner `extendedTextMessage`.
+
+---
+
+## Rich Menu (new in 10.5.0, risk-aware)
+
+Port of `richMenu` from `@vansnowi/baileys` (also exported as `buildRichMenuMessage` / `sendRichMenu` from `lib/Utils/rich-menu.js`). Buttons are CTA widgets with a toast, not quick-replies that send a message back. Uses the internal GenAI `unifiedResponse` format, so it may not render on every WhatsApp client.
+
+```js
+// tombol
+await sock.richMenu(jid, {
+  header: { title: 'Main Menu', image: { url: 'https://example.com/banner.png' } },
+  body: { title: 'Pick one', buttons: ['Profile', 'Settings', 'Help'], toast: 'opening...' },
+  footer: { text: 'Join us', url: 't.me/example' }
+})
+
+// kartu geser (carousel: true) / baris (row: true)
+await sock.richMenu(jid, {
+  body: {
+    carousel: true,
+    cards: [
+      { title: 'Card 1', buttons: ['A', 'B'], toast: '...' },
+      { title: 'Card 2', buttons: ['C', 'D'], toast: '...' }
+    ]
+  }
+})
+```
+
+`footer.url` is required for the open-URL button (no default link).
+
+---
+
+## A2UI Widget (new in 10.5.0, risk-aware)
+
+Declarative widgets (`Text`, `Image`, `Video`, `Button`, `Card`, `Column`, `Row`, `Divider`, `CheckBox`, `TextField`, `ChoicePicker`, plus `listCard`) sent as `interactiveMessage.bloksWidget`. Also exported as `A2UI` / `sendA2UIWidget` from `lib/Utils/a2ui.js`. The proto now includes `InteractiveMessage.BloksWidget` (field 8). Internal WhatsApp format, so it may not render on every client.
+
+```js
+import { A2UI } from '@rennzsync/baileys'
+
+const ui = new A2UI()
+const title = ui.text('Halo!', { variant: 'h1' })
+const label = ui.text('Klik saya')
+const btn = ui.button(label, { action: { name: 'noop' } })
+ui.root([ui.card(ui.column([title, btn]))])
+
+await sock.sendA2UI(jid, { a2ui: ui, bodyText: 'Widget', footer: 'A2UI' })
+
+// list card
+const list = new A2UI().listCard({
+  title: 'Menu',
+  items: [{ title: 'Nasi Goreng', price: 'Rp15.000' }, { title: 'Es Teh', price: 'Rp5.000' }]
+})
+await sock.sendA2UI(jid, { a2ui: list, bodyText: 'Pesan menu' })
+```
+
+Options: `singleScreen`, `buttons` (native flow `{ name, params }`), `expiration`, `contextInfo`, `quoted`, `wrapped`, `type`.
+
+---
+
 ## Default Configuration (RAM-friendly)
 
 ```js
@@ -329,10 +396,11 @@ const sock = makeWASocket({
 - **10.0.3:** added `rich-carousel.js` (`buildCarouselMessage`, `buildInteractiveMessage`, `buildInteractiveCard`, `buildNativeFlowButton`, `sendCarouselMessage`, `sendInteractiveMessage`) for carousel cards and richer native-flow CTA buttons (`cta_url`/`cta_call`/`cta_copy`/`cta_reminder`/`single_select`). Also extended `generateProfilePicture` (and `updateProfilePicture` / `newsletterUpdatePicture`) with a `{ full: true }` option to upload profile pictures at source resolution/high quality instead of the forced 640×640 quality-50 downscale.
 - **10.1.0:** merged in `lib/Store/*` (in-memory store, cache-manager store, keyed-db/ordered-dictionary/object-repository) from `@vansnowi/baileys`, plus `useSqliteAuthState` (Node 22.5+ built-in `node:sqlite`, with a clear fallback error on older Node) and `isSecret`/`protected`/`me`-only send filters wired into `sock.sendMessage`.
 - **10.2.0:** added `generateWAMessageFromImagePoll` / `hashImagePollOption` — client-side builder for WhatsApp's image-poll message type (`pollCreationMessageV3` + `pollCreationOptionImageMessage`, `MEDIA_POLL` association). Experimental — no upstream Baileys fork ships this.
+- **10.5.0:** added `viewOnceV2` / `viewOnceV2Extension` send options (wrap the message in `viewOnceMessageV2` / `viewOnceMessageV2Extension`; text gets `viewOnce: true` inside `extendedTextMessage`); `sock.richMenu` (`rich-menu.js`: `buildRichMenuMessage`, `sendRichMenu` — buttons, carousel/row cards, image header, open-URL footer) ported from `@vansnowi/baileys` without its hardcoded default footer link; A2UI widgets (`a2ui.js`: `A2UI`, `sendA2UIWidget`, `sock.sendA2UI`) sent via `interactiveMessage.bloksWidget`, with `InteractiveMessage.BloksWidget` (field 8) added to WAProto (`WAProto.proto`, `index.js`, `index.d.ts`). `richMenu` and A2UI use internal WhatsApp formats and may not render on every client.
 - Default config changed: `syncFullHistory` and `enableRecentMessageCache` are now `false`.
 - `protobufjs-cli` pinned to `^1.1.3` (peer dependency conflict fix); `link-preview-js` to `^5.0.0` (SSRF advisory fix).
-- **Rebrand:** package renamed to `@renz/baileys`, now maintained by [RennZz-Dev](https://github.com/RennZSync). No API changes — update your imports from `onigis` to `@renz/baileys`.
-- **Signal engine reverted to stock:** dropped the custom `@renz/signal`/`@renz/curve25519` (MIT, native Rust) engine and went back to the original `libsignal` (GPL-3.0) used by stock Baileys rc14 — same Signal Protocol implementation, no more custom native binaries to build/ship. See the license note near the top of this file.
+- **Rebrand:** package renamed to `@rennzsync/baileys`, now maintained by [RennZz-Dev](https://github.com/RennZSync). No API changes — update your imports from `onigis` to `@rennzsync/baileys`.
+- **Signal engine reverted to stock:** dropped the custom `@rennzsync/signal`/`@rennzsync/curve25519` (MIT, native Rust) engine and went back to the original `libsignal` (GPL-3.0) used by stock Baileys rc14 — same Signal Protocol implementation, no more custom native binaries to build/ship. See the license note near the top of this file.
 
 ---
 
