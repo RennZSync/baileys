@@ -4,7 +4,7 @@
 
 **Library WhatsApp Bot ringan — full rebase dari `@whiskeysockets/baileys` 7.0.0-rc14**
 
-[![Version](https://img.shields.io/badge/npm-10.5.0-25D366?style=for-the-badge&logo=whatsapp&logoColor=white)](https://www.npmjs.com/package/@rennzsync/baileys)
+[![Version](https://img.shields.io/badge/npm-10.5.2-25D366?style=for-the-badge&logo=whatsapp&logoColor=white)](https://www.npmjs.com/package/@rennzsync/baileys)
 [![Node](https://img.shields.io/badge/Node.js-%3E%3D20.0.0-339933?style=for-the-badge&logo=node.js&logoColor=white)](https://nodejs.org)
 [![Baileys](https://img.shields.io/badge/Base-Baileys%207.0.0--rc14-blue?style=for-the-badge)](https://github.com/WhiskeySockets/Baileys)
 [![License](https://img.shields.io/badge/License-MIT%20%2B%20GPL--3.0%20dep-blue?style=for-the-badge)](LICENSE)
@@ -55,7 +55,7 @@ npm install @rennzsync/baileys
 | `audio-decode` | Waveform voice note (`ptt: true`) — **wajib buat voice note** |
 | `sharp` | Resize/kompresi gambar |
 | `fluent-ffmpeg` | Konversi video/audio, thumbnail video |
-| `jimp` | Thumbnail alternatif (tanpa sharp) |
+| `jimp` (`^1.6.1`) | Thumbnail alternatif (tanpa sharp) |
 | `link-preview-js` | Preview link |
 
 ---
@@ -283,6 +283,12 @@ sock.ev.on('creds.update', saveCreds);
 
 `sock.sendMessage(jid, content, { isSecret, protected, me })` — tiga filter device/penerima tambahan yang di-port dari `@vansnowi/baileys`, diteruskan langsung ke `relayMessage`.
 
+`sock.sendMessage(jid, content, { noSelfSync: true })` — **No SelfSync (baru di 10.5.2)**: pesan tetap terkirim ke penerima tapi *tidak* disinkronkan ke device lain milik pengirim, jadi tidak muncul di HP/companion pengirim. `true` = tidak terlihat di device pengirim, `false` (default) = terlihat. Hanya chat 1:1 (di grup alur sender-key tidak diubah).
+
+```js
+await sock.sendMessage(jid, { text: 'Test' }, { noSelfSync: true })
+```
+
 ---
 
 ## Poll gambar (baru di 10.2.0)
@@ -397,6 +403,7 @@ const sock = makeWASocket({
 - **10.1.0:** menggabungkan `lib/Store/*` (in-memory store, cache-manager store, keyed-db/ordered-dictionary/object-repository) dari `@vansnowi/baileys`, plus `useSqliteAuthState` (node:sqlite bawaan Node 22.5+, dengan fallback error yang jelas di Node lama) dan filter kirim `isSecret`/`protected`/`me`-only yang dipasang ke `sock.sendMessage`.
 - **10.2.0:** menambahkan `generateWAMessageFromImagePoll` / `hashImagePollOption` — builder sisi klien buat tipe pesan image-poll WhatsApp (`pollCreationMessageV3` + `pollCreationOptionImageMessage`, asosiasi `MEDIA_POLL`). Eksperimental — nggak ada fork Baileys upstream yang menyediakan ini.
 - **10.5.0:** menambahkan opsi kirim `viewOnceV2` / `viewOnceV2Extension` (pesan dibungkus `viewOnceMessageV2` / `viewOnceMessageV2Extension`; untuk teks, `viewOnce: true` di-set di dalam `extendedTextMessage`); `sock.richMenu` (`rich-menu.js`: `buildRichMenuMessage`, `sendRichMenu` — tombol, kartu carousel/row, header gambar, footer open-URL) di-port dari `@vansnowi/baileys` tanpa link footer default bawaannya; widget A2UI (`a2ui.js`: `A2UI`, `sendA2UIWidget`, `sock.sendA2UI`) dikirim lewat `interactiveMessage.bloksWidget`, dengan `InteractiveMessage.BloksWidget` (field 8) ditambahkan ke WAProto (`WAProto.proto`, `index.js`, `index.d.ts`). `richMenu` dan A2UI memakai format internal WhatsApp, jadi bisa tidak dirender di semua client.
+- **10.5.2:** menambahkan opsi kirim `noSelfSync` (`sock.sendMessage(jid, content, { noSelfSync: true })`) — device lain milik pengirim dilewati saat enkripsi pesan 1:1, jadi pesan tidak tersinkron / tidak terlihat di device pengirim. Juga di 10.5.2: `generateWAMessageFromImagePoll` sekarang mengirim node `<meta polltype="creation"/>` bersama pesan poll (sebelumnya poll tidak tampil, hanya gambar opsinya); thumbnail gambar sekarang jalan hanya dengan jimp 1.x (cabang jimp mengecek `typeof Jimp === 'object'` sehingga tidak pernah jalan, jadi setup tanpa sharp tidak punya thumbnail); library gambar (sharp, kalau tidak ada jimp `^1.6.1`) di-resolve sekali dan jimp tidak lagi di-import kalau sharp ada (`BAILEYS_IMAGE_LIB=jimp` memaksa jimp); ffmpeg untuk thumbnail video pakai `execFile` (tanpa shell, path dengan spasi aman).
 - Konfigurasi default berubah: `syncFullHistory` dan `enableRecentMessageCache` sekarang `false`.
 - `protobufjs-cli` di-pin ke `^1.1.3` (fix konflik peer dependency); `link-preview-js` ke `^5.0.0` (fix advisory SSRF).
 - **Rebrand:** package diganti nama jadi `@rennzsync/baileys`, sekarang dirawat oleh [RennZz-Dev](https://github.com/RennZSync). Nggak ada perubahan API — update import kamu dari `onigis` ke `@rennzsync/baileys`.

@@ -4,7 +4,7 @@
 
 **Lightweight WhatsApp Bot library — fully rebased onto `@whiskeysockets/baileys` 7.0.0-rc14**
 
-[![Version](https://img.shields.io/badge/npm-10.5.0-25D366?style=for-the-badge&logo=whatsapp&logoColor=white)](https://www.npmjs.com/package/@rennzsync/baileys)
+[![Version](https://img.shields.io/badge/npm-10.5.2-25D366?style=for-the-badge&logo=whatsapp&logoColor=white)](https://www.npmjs.com/package/@rennzsync/baileys)
 [![Node](https://img.shields.io/badge/Node.js-%3E%3D20.0.0-339933?style=for-the-badge&logo=node.js&logoColor=white)](https://nodejs.org)
 [![Baileys](https://img.shields.io/badge/Base-Baileys%207.0.0--rc14-blue?style=for-the-badge)](https://github.com/WhiskeySockets/Baileys)
 [![License](https://img.shields.io/badge/License-MIT%20%2B%20GPL--3.0%20dep-blue?style=for-the-badge)](LICENSE)
@@ -55,7 +55,7 @@ npm install @rennzsync/baileys
 | `audio-decode` | Voice note waveform (`ptt: true`) — **required for voice notes** |
 | `sharp` | Image resize/compression |
 | `fluent-ffmpeg` | Video/audio conversion, video thumbnails |
-| `jimp` | Alternative thumbnails (without sharp) |
+| `jimp` (`^1.6.1`) | Alternative thumbnails (without sharp) |
 | `link-preview-js` | Link previews |
 
 ---
@@ -283,6 +283,12 @@ sock.ev.on('creds.update', saveCreds);
 
 `sock.sendMessage(jid, content, { isSecret, protected, me })` — three extra device/recipient filters ported from `@vansnowi/baileys`, forwarded straight through to `relayMessage`.
 
+`sock.sendMessage(jid, content, { noSelfSync: true })` — **No SelfSync (new in 10.5.2)**: the message is delivered to the recipient but is *not* synced to the sender's own other devices, so it stays invisible on the sender's phone/companions. `true` = not visible on the sender device, `false` (default) = visible. 1:1 chats only (in groups the sender-key flow is unchanged).
+
+```js
+await sock.sendMessage(jid, { text: 'Test' }, { noSelfSync: true })
+```
+
 ---
 
 ## Image poll (new in 10.2.0)
@@ -397,6 +403,7 @@ const sock = makeWASocket({
 - **10.1.0:** merged in `lib/Store/*` (in-memory store, cache-manager store, keyed-db/ordered-dictionary/object-repository) from `@vansnowi/baileys`, plus `useSqliteAuthState` (Node 22.5+ built-in `node:sqlite`, with a clear fallback error on older Node) and `isSecret`/`protected`/`me`-only send filters wired into `sock.sendMessage`.
 - **10.2.0:** added `generateWAMessageFromImagePoll` / `hashImagePollOption` — client-side builder for WhatsApp's image-poll message type (`pollCreationMessageV3` + `pollCreationOptionImageMessage`, `MEDIA_POLL` association). Experimental — no upstream Baileys fork ships this.
 - **10.5.0:** added `viewOnceV2` / `viewOnceV2Extension` send options (wrap the message in `viewOnceMessageV2` / `viewOnceMessageV2Extension`; text gets `viewOnce: true` inside `extendedTextMessage`); `sock.richMenu` (`rich-menu.js`: `buildRichMenuMessage`, `sendRichMenu` — buttons, carousel/row cards, image header, open-URL footer) ported from `@vansnowi/baileys` without its hardcoded default footer link; A2UI widgets (`a2ui.js`: `A2UI`, `sendA2UIWidget`, `sock.sendA2UI`) sent via `interactiveMessage.bloksWidget`, with `InteractiveMessage.BloksWidget` (field 8) added to WAProto (`WAProto.proto`, `index.js`, `index.d.ts`). `richMenu` and A2UI use internal WhatsApp formats and may not render on every client.
+- **10.5.2:** added `noSelfSync` send option (`sock.sendMessage(jid, content, { noSelfSync: true })`) — skips the sender's own devices when encrypting a 1:1 message, so it is not synced to / visible on the sender device. Also in 10.5.2: `generateWAMessageFromImagePoll` now sends the `<meta polltype="creation"/>` node with the poll message (the poll itself wasn't rendering, only its option images); image thumbnails now work with jimp 1.x alone (the jimp branch checked `typeof Jimp === 'object'` and never ran, so a jimp-only setup had no thumbnails); the image library (sharp, else jimp `^1.6.1`) is resolved once and jimp is no longer imported when sharp is present (`BAILEYS_IMAGE_LIB=jimp` forces jimp); the video-thumbnail ffmpeg call uses `execFile` (no shell, paths with spaces work).
 - Default config changed: `syncFullHistory` and `enableRecentMessageCache` are now `false`.
 - `protobufjs-cli` pinned to `^1.1.3` (peer dependency conflict fix); `link-preview-js` to `^5.0.0` (SSRF advisory fix).
 - **Rebrand:** package renamed to `@rennzsync/baileys`, now maintained by [RennZz-Dev](https://github.com/RennZSync). No API changes — update your imports from `onigis` to `@rennzsync/baileys`.
