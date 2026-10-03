@@ -4,7 +4,7 @@
 
 **Library WhatsApp Bot ringan — full rebase dari `@whiskeysockets/baileys` 7.0.0-rc14**
 
-[![Version](https://img.shields.io/badge/npm-10.5.2-25D366?style=for-the-badge&logo=whatsapp&logoColor=white)](https://www.npmjs.com/package/@rennzsync/baileys)
+[![Version](https://img.shields.io/badge/npm-10.7.0-25D366?style=for-the-badge&logo=whatsapp&logoColor=white)](https://www.npmjs.com/package/@rennzsync/baileys)
 [![Node](https://img.shields.io/badge/Node.js-%3E%3D20.0.0-339933?style=for-the-badge&logo=node.js&logoColor=white)](https://nodejs.org)
 [![Baileys](https://img.shields.io/badge/Base-Baileys%207.0.0--rc14-blue?style=for-the-badge)](https://github.com/WhiskeySockets/Baileys)
 [![License](https://img.shields.io/badge/License-MIT%20%2B%20GPL--3.0%20dep-blue?style=for-the-badge)](LICENSE)
@@ -28,6 +28,7 @@ Fokus proyek: **bot WhatsApp multimedia** — pipeline audio, video, gambar, dan
 - **Pipeline multimedia terpusat** — utility `media-processor` (ffmpeg/sharp/audio-decode, lazy-loaded).
 - **Rich WebUI** — render interface HTML/CSS/JS langsung di dalam bubble chat lewat `sendInlineWebUI`.
 - **Widget & rich menu (10.5.0)** — `sock.sendA2UI` (widget A2UI), `sock.richMenu`, dan opsi kirim `viewOnceV2` / `viewOnceV2Extension`.
+- **`relayMessage` asli + lapisan shortcut (10.6.1)** — `relayMessage` kembali jadi upstream Baileys; flag `isSecret` / `protected` / `me`, `<biz>` otomatis untuk semua tipe tombol, dan resolusi `type` / `mediatype` ala zapo-js ada di wrapper di atasnya.
 - **Hemat RAM secara default** — `syncFullHistory: false`, `enableRecentMessageCache: false`, TTL cache moderat.
 
 ---
@@ -283,12 +284,6 @@ sock.ev.on('creds.update', saveCreds);
 
 `sock.sendMessage(jid, content, { isSecret, protected, me })` — tiga filter device/penerima tambahan yang di-port dari `@vansnowi/baileys`, diteruskan langsung ke `relayMessage`.
 
-`sock.sendMessage(jid, content, { noSelfSync: true })` — **No SelfSync (baru di 10.5.2)**: pesan tetap terkirim ke penerima tapi *tidak* disinkronkan ke device lain milik pengirim, jadi tidak muncul di HP/companion pengirim. `true` = tidak terlihat di device pengirim, `false` (default) = terlihat. Hanya chat 1:1 (di grup alur sender-key tidak diubah).
-
-```js
-await sock.sendMessage(jid, { text: 'Test' }, { noSelfSync: true })
-```
-
 ---
 
 ## Poll gambar (baru di 10.2.0)
@@ -378,6 +373,40 @@ Opsi: `singleScreen`, `buttons` (native flow `{ name, params }`), `expiration`, 
 
 ---
 
+## relayMessage = Baileys original + lapisan shortcut (baru di 10.6.1)
+
+Di 10.6.1 `relayMessage` **kembali ke implementasi asli Baileys 7.0.0-rc14** (`relayMessageCore`, sama persis dengan upstream kecuali satu hook `recipientFilter` sebanyak 3 baris). Semua fitur fork sekarang ada di wrapper tipis di atasnya, dan wrapper itulah yang diekspos sebagai `sock.relayMessage` — `sendMessage`, retry, `richMenu`, dan `sendA2UI` semuanya lewat situ.
+
+**Flag shortcut** (sama seperti sebelumnya, sekarang di luar core):
+
+```js
+await sock.sendMessage(jid, content, { isSecret: true })   // hanya device utama penerima
+await sock.sendMessage(jid, content, { protected: true })  // device utama penerima + device sendiri
+await sock.sendMessage(jid, content, { me: true })         // hanya device sendiri
+```
+
+**Node `<biz>` otomatis** untuk pesan button / list / native-flow (dilewati kalau kamu kasih node `biz` sendiri di `additionalNodes`, dan untuk status / newsletter). Deteksi sekarang mengecek **semua** tombol native-flow, bukan cuma yang pertama, dan membuka bungkus `viewOnce*`:
+
+| Tombol / pesan | `<biz>` yang dikirim |
+| --- | --- |
+| `listMessage` | `<list type="product_list" v="2"/>` (berubah di 10.6.1, dulu native-flow `mixed`) |
+| `buttonsMessage`, native-flow lain | `native_flow` `mixed` |
+| `cta_catalog`, `mpm`, `send_location`, `view_catalog`, `wa_pay_detail` | `native_flow` dengan nama yang sesuai |
+| `call_request` | `call_permission_request` |
+| `review_and_pay`, `review_order`, `payment_info`, `payment_status`, `payment_method` | node order/payment `native_flow_name` |
+
+`FLOW_NAME` dan `ORDER_RESPONSE_NAME` sekarang di-export dari `lib/WABinary/generic-utils.js`.
+
+**`type` / `mediatype` stanza — port dari [zapo-js](https://github.com/vinikjkkj/zapo) 1.9.0:**
+
+- Konten terbungkus di-resolve lewat **semua** wrapper (`ephemeral`, `viewOnce*`, `documentWithCaption`, `edited`, `groupStatus` / `groupStatusV2`, `groupMentioned`, `botInvoke`, `botForwarded`, `deviceSent`). Upstream memanggil `getMediaType` pada pesan mentah, jadi gambar yang terbungkus (view-once, status grup, bot-forwarded) keluar sebagai `type=media` **tanpa** `mediatype`, pasangan yang tidak pernah dikirim client asli.
+- Nilai `mediatype` baru: `location` (dan `livelocation` lewat `isLive`), `ptv`, `sticker_pack`, `group_history`.
+- `type=event` juga untuk `encEventResponseMessage` dan `secretEncryptedMessage` (`EVENT_EDIT`); `type=poll` juga untuk `pollCreationMessageV5` / `V6`.
+
+> Catatan risiko: bentuk stanza divalidasi server. Node `<list>` dan nilai `mediatype` baru mengikuti WhatsApp Web / zapo-js, tapi belum dites ke akun asli di sini — coba dulu di nomor cadangan.
+
+---
+
 ## Konfigurasi Default (hemat RAM)
 
 ```js
@@ -403,7 +432,9 @@ const sock = makeWASocket({
 - **10.1.0:** menggabungkan `lib/Store/*` (in-memory store, cache-manager store, keyed-db/ordered-dictionary/object-repository) dari `@vansnowi/baileys`, plus `useSqliteAuthState` (node:sqlite bawaan Node 22.5+, dengan fallback error yang jelas di Node lama) dan filter kirim `isSecret`/`protected`/`me`-only yang dipasang ke `sock.sendMessage`.
 - **10.2.0:** menambahkan `generateWAMessageFromImagePoll` / `hashImagePollOption` — builder sisi klien buat tipe pesan image-poll WhatsApp (`pollCreationMessageV3` + `pollCreationOptionImageMessage`, asosiasi `MEDIA_POLL`). Eksperimental — nggak ada fork Baileys upstream yang menyediakan ini.
 - **10.5.0:** menambahkan opsi kirim `viewOnceV2` / `viewOnceV2Extension` (pesan dibungkus `viewOnceMessageV2` / `viewOnceMessageV2Extension`; untuk teks, `viewOnce: true` di-set di dalam `extendedTextMessage`); `sock.richMenu` (`rich-menu.js`: `buildRichMenuMessage`, `sendRichMenu` — tombol, kartu carousel/row, header gambar, footer open-URL) di-port dari `@vansnowi/baileys` tanpa link footer default bawaannya; widget A2UI (`a2ui.js`: `A2UI`, `sendA2UIWidget`, `sock.sendA2UI`) dikirim lewat `interactiveMessage.bloksWidget`, dengan `InteractiveMessage.BloksWidget` (field 8) ditambahkan ke WAProto (`WAProto.proto`, `index.js`, `index.d.ts`). `richMenu` dan A2UI memakai format internal WhatsApp, jadi bisa tidak dirender di semua client.
-- **10.5.2:** menambahkan opsi kirim `noSelfSync` (`sock.sendMessage(jid, content, { noSelfSync: true })`) — device lain milik pengirim dilewati saat enkripsi pesan 1:1, jadi pesan tidak tersinkron / tidak terlihat di device pengirim. Juga di 10.5.2: `generateWAMessageFromImagePoll` sekarang mengirim node `<meta polltype="creation"/>` bersama pesan poll (sebelumnya poll tidak tampil, hanya gambar opsinya); thumbnail gambar sekarang jalan hanya dengan jimp 1.x (cabang jimp mengecek `typeof Jimp === 'object'` sehingga tidak pernah jalan, jadi setup tanpa sharp tidak punya thumbnail); library gambar (sharp, kalau tidak ada jimp `^1.6.1`) di-resolve sekali dan jimp tidak lagi di-import kalau sharp ada (`BAILEYS_IMAGE_LIB=jimp` memaksa jimp); ffmpeg untuk thumbnail video pakai `execFile` (tanpa shell, path dengan spasi aman).
+- **10.7.0:** **WAProto** diganti dengan `WAProto/index.js` hasil generate yang lebih baru (361 tipe top-level, naik dari 202) — menambah pesan bot/AI, derivasi kunci Signal, backup, dan consumer-application yang baru. `LIDMigrationMapping` dan `LIDMigrationMappingSyncPayload` tidak ada di file itu, jadi dikembalikan dari Baileys rc14 (`process-message.js` butuh keduanya untuk sinkronisasi mapping LID). `WAProto.proto` / `index.d.ts` *tidak* di-generate ulang — **jangan jalankan `npm run build:proto`**, karena akan menimpa `index.js` dengan proto yang lebih lama. `InteractiveMessage.BloksWidget` (A2UI) tetap ada. **messages-send:** opsi kirim `noSelfSync` dihapus beserta `README.noselfsync.md`; sisa lapisan shortcut (`isSecret` / `protected` / `me`, `<biz>` otomatis, `type` / `mediatype` ala zapo-js, `richMenu`, `sendA2UI`) tidak berubah dan `relayMessageCore` tetap sama dengan Baileys 7.0.0-rc14 kecuali hook `recipientFilter`. File `messages-send.js.map` yang usang dihapus.
+- **10.6.1:** `relayMessage` dikembalikan ke body asli Baileys 7.0.0-rc14 (`relayMessageCore` + hook `recipientFilter`); `isSecret` / `protected` / `me` dan node `<biz>` otomatis dipindah ke wrapper yang diekspos `sock.relayMessage`. Deteksi `<biz>` mengecek semua tombol native-flow dan mencakup `cta_catalog`, `mpm`, `call_request`, `view_catalog`, `wa_pay_detail`, `send_location`; `listMessage` sekarang mengirim `<list type="product_list" v="2"/>`, bukan native-flow `mixed`. Port dari zapo-js 1.9.0: `type` / `mediatype` stanza di-resolve lewat semua wrapper (`getMediaType` sekarang unwrap sendiri), `mediatype` baru `location` / `ptv` / `sticker_pack` / `group_history`, `type=event` / `type=poll` untuk pesan event & poll yang lebih baru. `FLOW_NAME` / `ORDER_RESPONSE_NAME` di-export dari `generic-utils.js`.
+- **10.5.2:** menambahkan opsi kirim `noSelfSync` (`sock.sendMessage(jid, content, { noSelfSync: true })`) — device lain milik pengirim dilewati saat enkripsi pesan 1:1, jadi pesan tidak tersinkron / tidak terlihat di device pengirim. Juga di 10.5.2: `generateWAMessageFromImagePoll` sekarang mengirim node `<meta polltype="creation"/>` bersama pesan poll (sebelumnya poll tidak tampil, hanya gambar opsinya); thumbnail gambar sekarang jalan hanya dengan jimp 1.x (cabang jimp mengecek `typeof Jimp === 'object'` sehingga tidak pernah jalan, jadi setup tanpa sharp tidak punya thumbnail); library gambar (sharp, kalau tidak ada jimp `^1.6.1`) di-resolve sekali dan jimp tidak lagi di-import kalau sharp ada (`BAILEYS_IMAGE_LIB=jimp` memaksa jimp); ffmpeg untuk thumbnail video pakai `execFile` (tanpa shell, path dengan spasi aman). **Catatan: opsi `noSelfSync` dihapus lagi di 10.7.0.**
 - Konfigurasi default berubah: `syncFullHistory` dan `enableRecentMessageCache` sekarang `false`.
 - `protobufjs-cli` di-pin ke `^1.1.3` (fix konflik peer dependency); `link-preview-js` ke `^5.0.0` (fix advisory SSRF).
 - **Rebrand:** package diganti nama jadi `@rennzsync/baileys`, sekarang dirawat oleh [RennZz-Dev](https://github.com/RennZSync). Nggak ada perubahan API — update import kamu dari `onigis` ke `@rennzsync/baileys`.
@@ -424,6 +455,7 @@ Termasuk unit test buat: JID utils (PN/LID/hosted), Rich WebUI (build + roundtri
 ## Kredit
 
 - **[RennZz-Dev](https://github.com/RennZSync)** — maintainer `rennzsync/baileys`: rebrand, perawatan berkelanjutan & penyesuaian fokus bot
+- **[vinikjkkj/zapo](https://github.com/vinikjkkj/zapo)** — referensi bentuk stanza WhatsApp Web (`type` / `mediatype` / `<biz>`) yang di-port di 10.6.1
 - **[WhiskeySockets/Baileys](https://github.com/WhiskeySockets/Baileys)** — library upstream & wrapper Signal Protocol asli (berbasis `libsignal`)
 
 ---

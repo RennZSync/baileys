@@ -4,7 +4,7 @@
 
 **Lightweight WhatsApp Bot library — fully rebased onto `@whiskeysockets/baileys` 7.0.0-rc14**
 
-[![Version](https://img.shields.io/badge/npm-10.6.0-25D366?style=for-the-badge&logo=whatsapp&logoColor=white)](https://www.npmjs.com/package/@rennzsync/baileys)
+[![Version](https://img.shields.io/badge/npm-10.7.0-25D366?style=for-the-badge&logo=whatsapp&logoColor=white)](https://www.npmjs.com/package/@rennzsync/baileys)
 [![Node](https://img.shields.io/badge/Node.js-%3E%3D20.0.0-339933?style=for-the-badge&logo=node.js&logoColor=white)](https://nodejs.org)
 [![Baileys](https://img.shields.io/badge/Base-Baileys%207.0.0--rc14-blue?style=for-the-badge)](https://github.com/WhiskeySockets/Baileys)
 [![License](https://img.shields.io/badge/License-MIT%20%2B%20GPL--3.0%20dep-blue?style=for-the-badge)](LICENSE)
@@ -28,6 +28,7 @@ Project focus: **multimedia WhatsApp bots** — audio, video, image and sticker 
 - **Centralized multimedia pipeline** — `media-processor` utilities (ffmpeg/sharp/audio-decode, lazy-loaded).
 - **Rich WebUI** — render HTML/CSS/JS interfaces directly inside chat bubbles via `sendInlineWebUI`.
 - **Widgets & rich menus (10.5.0)** — `sock.sendA2UI` (A2UI widgets), `sock.richMenu`, and `viewOnceV2` / `viewOnceV2Extension` send options.
+- **Original `relayMessage` + shortcut layer (10.6.1)** — `relayMessage` is upstream Baileys again; `isSecret` / `protected` / `me` flags, auto `<biz>` for all button types and zapo-js-style `type` / `mediatype` resolution sit in a wrapper on top.
 - **RAM-friendly by default** — `syncFullHistory: false`, `enableRecentMessageCache: false`, moderate cache TTLs.
 
 ---
@@ -283,12 +284,6 @@ sock.ev.on('creds.update', saveCreds);
 
 `sock.sendMessage(jid, content, { isSecret, protected, me })` — three extra device/recipient filters ported from `@vansnowi/baileys`, forwarded straight through to `relayMessage`.
 
-`sock.sendMessage(jid, content, { noSelfSync: true })` — **No SelfSync (new in 10.5.2)**: the message is delivered to the recipient but is *not* synced to the sender's own other devices, so it stays invisible on the sender's phone/companions. `true` = not visible on the sender device, `false` (default) = visible. 1:1 chats only (in groups the sender-key flow is unchanged).
-
-```js
-await sock.sendMessage(jid, { text: 'Test' }, { noSelfSync: true })
-```
-
 ---
 
 ## Image poll (new in 10.2.0)
@@ -378,6 +373,40 @@ Options: `singleScreen`, `buttons` (native flow `{ name, params }`), `expiration
 
 ---
 
+## relayMessage = Baileys original + shortcut layer (new in 10.6.1)
+
+In 10.6.1 `relayMessage` is the **original Baileys 7.0.0-rc14 implementation again** (`relayMessageCore`, byte-for-byte upstream apart from one 3-line `recipientFilter` hook). Every fork feature now lives in a thin wrapper around it, and the wrapper is what `sock.relayMessage` exposes — `sendMessage`, retries, `richMenu` and `sendA2UI` all go through it.
+
+**Shortcut flags** (same as before, now outside the core):
+
+```js
+await sock.sendMessage(jid, content, { isSecret: true })   // only the recipient's primary device
+await sock.sendMessage(jid, content, { protected: true })  // recipient primary + own devices
+await sock.sendMessage(jid, content, { me: true })         // own devices only
+```
+
+**Auto `<biz>` node** for button / list / native-flow messages (skipped if you pass your own `biz` node in `additionalNodes`, and for status / newsletter). Detection now checks **every** native-flow button, not only the first one, and unwraps `viewOnce*`:
+
+| Button / message | `<biz>` sent |
+| --- | --- |
+| `listMessage` | `<list type="product_list" v="2"/>` (changed in 10.6.1, was native-flow `mixed`) |
+| `buttonsMessage`, other native-flow | `native_flow` `mixed` |
+| `cta_catalog`, `mpm`, `send_location`, `view_catalog`, `wa_pay_detail` | matching `native_flow` name |
+| `call_request` | `call_permission_request` |
+| `review_and_pay`, `review_order`, `payment_info`, `payment_status`, `payment_method` | `native_flow_name` order/payment node |
+
+`FLOW_NAME` and `ORDER_RESPONSE_NAME` are now exported from `lib/WABinary/generic-utils.js`.
+
+**Stanza `type` / `mediatype` — ported from [zapo-js](https://github.com/vinikjkkj/zapo) 1.9.0:**
+
+- Wrapped content is resolved through **all** wrappers (`ephemeral`, `viewOnce*`, `documentWithCaption`, `edited`, `groupStatus` / `groupStatusV2`, `groupMentioned`, `botInvoke`, `botForwarded`, `deviceSent`). Upstream calls `getMediaType` on the raw message, so a wrapped image (view-once, group status, bot-forwarded) left as `type=media` with **no** `mediatype`, a pairing real clients never send.
+- New `mediatype` values: `location` (and `livelocation` via `isLive`), `ptv`, `sticker_pack`, `group_history`.
+- `type=event` also for `encEventResponseMessage` and `secretEncryptedMessage` (`EVENT_EDIT`); `type=poll` also for `pollCreationMessageV5` / `V6`.
+
+> Risk note: stanza shape is validated server-side. The `<list>` biz node and the new `mediatype` values follow WhatsApp Web / zapo-js, but were not tested against a live account here — test on a throwaway number first.
+
+---
+
 ## Default Configuration (RAM-friendly)
 
 ```js
@@ -403,7 +432,9 @@ const sock = makeWASocket({
 - **10.1.0:** merged in `lib/Store/*` (in-memory store, cache-manager store, keyed-db/ordered-dictionary/object-repository) from `@vansnowi/baileys`, plus `useSqliteAuthState` (Node 22.5+ built-in `node:sqlite`, with a clear fallback error on older Node) and `isSecret`/`protected`/`me`-only send filters wired into `sock.sendMessage`.
 - **10.2.0:** added `generateWAMessageFromImagePoll` / `hashImagePollOption` — client-side builder for WhatsApp's image-poll message type (`pollCreationMessageV3` + `pollCreationOptionImageMessage`, `MEDIA_POLL` association). Experimental — no upstream Baileys fork ships this.
 - **10.5.0:** added `viewOnceV2` / `viewOnceV2Extension` send options (wrap the message in `viewOnceMessageV2` / `viewOnceMessageV2Extension`; text gets `viewOnce: true` inside `extendedTextMessage`); `sock.richMenu` (`rich-menu.js`: `buildRichMenuMessage`, `sendRichMenu` — buttons, carousel/row cards, image header, open-URL footer) ported from `@vansnowi/baileys` without its hardcoded default footer link; A2UI widgets (`a2ui.js`: `A2UI`, `sendA2UIWidget`, `sock.sendA2UI`) sent via `interactiveMessage.bloksWidget`, with `InteractiveMessage.BloksWidget` (field 8) added to WAProto (`WAProto.proto`, `index.js`, `index.d.ts`). `richMenu` and A2UI use internal WhatsApp formats and may not render on every client.
-- **10.5.2:** added `noSelfSync` send option (`sock.sendMessage(jid, content, { noSelfSync: true })`) — skips the sender's own devices when encrypting a 1:1 message, so it is not synced to / visible on the sender device. Also in 10.5.2: `generateWAMessageFromImagePoll` now sends the `<meta polltype="creation"/>` node with the poll message (the poll itself wasn't rendering, only its option images); image thumbnails now work with jimp 1.x alone (the jimp branch checked `typeof Jimp === 'object'` and never ran, so a jimp-only setup had no thumbnails); the image library (sharp, else jimp `^1.6.1`) is resolved once and jimp is no longer imported when sharp is present (`BAILEYS_IMAGE_LIB=jimp` forces jimp); the video-thumbnail ffmpeg call uses `execFile` (no shell, paths with spaces work).
+- **10.7.0:** **WAProto** replaced with a newer generated `WAProto/index.js` (361 top-level types, up from 202) — adds the new bot/AI, Signal-key-derivation, backup and consumer-application messages. `LIDMigrationMapping` and `LIDMigrationMappingSyncPayload` were missing from it and were restored from Baileys rc14 (`process-message.js` needs them for LID mapping sync). `WAProto.proto` / `index.d.ts` were *not* regenerated — **do not run `npm run build:proto`**, it would overwrite `index.js` with the older proto. `InteractiveMessage.BloksWidget` (A2UI) is still present. **messages-send:** removed the `noSelfSync` send option and its `README.noselfsync.md`; the rest of the shortcut layer (`isSecret` / `protected` / `me`, auto `<biz>`, zapo-js `type` / `mediatype`, `richMenu`, `sendA2UI`) is unchanged and `relayMessageCore` stays identical to Baileys 7.0.0-rc14 apart from the `recipientFilter` hook. Removed the stale `messages-send.js.map`.
+- **10.6.1:** `relayMessage` restored to the original Baileys 7.0.0-rc14 body (`relayMessageCore` + a `recipientFilter` hook); `isSecret` / `protected` / `me` and the auto `<biz>` node moved to a wrapper that `sock.relayMessage` exposes. `<biz>` detection checks every native-flow button and covers `cta_catalog`, `mpm`, `call_request`, `view_catalog`, `wa_pay_detail`, `send_location`; `listMessage` now sends `<list type="product_list" v="2"/>` instead of native-flow `mixed`. Ported from zapo-js 1.9.0: stanza `type` / `mediatype` resolve through all wrappers (`getMediaType` now unwraps itself), new `mediatype` `location` / `ptv` / `sticker_pack` / `group_history`, `type=event` / `type=poll` for the newer event & poll messages. `FLOW_NAME` / `ORDER_RESPONSE_NAME` exported from `generic-utils.js`.
+- **10.5.2:** added `noSelfSync` send option (`sock.sendMessage(jid, content, { noSelfSync: true })`) — skips the sender's own devices when encrypting a 1:1 message, so it is not synced to / visible on the sender device. Also in 10.5.2: `generateWAMessageFromImagePoll` now sends the `<meta polltype="creation"/>` node with the poll message (the poll itself wasn't rendering, only its option images); image thumbnails now work with jimp 1.x alone (the jimp branch checked `typeof Jimp === 'object'` and never ran, so a jimp-only setup had no thumbnails); the image library (sharp, else jimp `^1.6.1`) is resolved once and jimp is no longer imported when sharp is present (`BAILEYS_IMAGE_LIB=jimp` forces jimp); the video-thumbnail ffmpeg call uses `execFile` (no shell, paths with spaces work). **Note: the `noSelfSync` option was removed again in 10.7.0.**
 - Default config changed: `syncFullHistory` and `enableRecentMessageCache` are now `false`.
 - `protobufjs-cli` pinned to `^1.1.3` (peer dependency conflict fix); `link-preview-js` to `^5.0.0` (SSRF advisory fix).
 - **Rebrand:** package renamed to `@rennzsync/baileys`, now maintained by [RennZz-Dev](https://github.com/RennZSync). No API changes — update your imports from `onigis` to `@rennzsync/baileys`.
@@ -424,6 +455,7 @@ Includes unit tests for: JID utils (PN/LID/hosted), Rich WebUI (build + proto en
 ## Credits
 
 - **[RennZz-Dev](https://github.com/RennZSync)** — `rennzsync/baileys` maintainer: rebrand, ongoing upkeep & bot-focused tweaks
+- **[vinikjkkj/zapo](https://github.com/vinikjkkj/zapo)** — reference for the WhatsApp Web stanza shape (`type` / `mediatype` / `<biz>`) ported in 10.6.1
 - **[WhiskeySockets/Baileys](https://github.com/WhiskeySockets/Baileys)** — upstream library & original Signal Protocol wrapper (`libsignal`-based)
 
 ---
