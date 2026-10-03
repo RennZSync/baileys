@@ -2,7 +2,7 @@
 
 # rennzsync/baileys
 
-**Lightweight WhatsApp Bot library — fully rebased onto `@whiskeysockets/baileys` 7.0.0-rc14**
+**Lightweight WhatsApp Bot library —  rebased `@whiskeysockets/baileys` 7.0.0-rc14**
 
 [![Version](https://img.shields.io/badge/npm-10.7.0-25D366?style=for-the-badge&logo=whatsapp&logoColor=white)](https://www.npmjs.com/package/@rennzsync/baileys)
 [![Node](https://img.shields.io/badge/Node.js-%3E%3D20.0.0-339933?style=for-the-badge&logo=node.js&logoColor=white)](https://nodejs.org)
